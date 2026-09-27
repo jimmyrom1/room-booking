@@ -29,10 +29,30 @@ export function MyBookingsPage() {
     }
   }
 
+  async function exportIcs(b?: Booking) {
+    try {
+      await (b ? api.downloadBookingIcs(b.id) : api.downloadMyBookingsIcs())
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const hasUpcoming = scope === 'upcoming' && bookings?.some((b) => !b.is_cancelled)
+
   return (
     <>
       <header className="page-header">
         <h1>Mis reservas</h1>
+        {hasUpcoming && (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => exportIcs()}
+            title="Descarga un .ics para Google Calendar, Outlook o Apple Calendar"
+          >
+            Añadir todas al calendario
+          </button>
+        )}
         <div className="segmented" role="tablist">
           <button type="button" role="tab" aria-selected={scope === 'upcoming'} onClick={() => setScope('upcoming')}>
             Próximas
@@ -74,11 +94,17 @@ export function MyBookingsPage() {
             {b.is_cancelled ? (
               <span className="chip">Cancelada</span>
             ) : (
-              scope === 'upcoming' &&
-              new Date(b.starts_at) > new Date() && (
-                <button type="button" className="link danger" onClick={() => cancel(b)}>
-                  Cancelar
-                </button>
+              scope === 'upcoming' && (
+                <div className="actions">
+                  <button type="button" className="link" onClick={() => exportIcs(b)}>
+                    .ics
+                  </button>
+                  {new Date(b.starts_at) > new Date() && (
+                    <button type="button" className="link danger" onClick={() => cancel(b)}>
+                      Cancelar
+                    </button>
+                  )}
+                </div>
               )
             )}
           </li>

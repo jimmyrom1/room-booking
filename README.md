@@ -20,7 +20,7 @@ sala nunca pueden solaparse**, ni siquiera si llegan a la vez.
 | API | Python 3.12, Flask 3, SQLAlchemy 2, Marshmallow, Flask-JWT-Extended |
 | Base de datos | PostgreSQL 16 (`EXCLUDE USING gist`, `tstzrange`, `btree_gist`), Alembic |
 | Frontend | React 19, TypeScript, Vite, React Router |
-| Calidad | pytest (48 tests contra PostgreSQL real), Vitest + Testing Library, Ruff, oxlint |
+| Calidad | pytest (57 tests contra PostgreSQL real), Vitest + Testing Library, Ruff, oxlint |
 | Infraestructura | Docker Compose (Postgres + Gunicorn + Nginx), GitHub Actions |
 
 ## Arrancar en un minuto
@@ -105,6 +105,23 @@ aparecía como ocupada al 100 %. Se corrige con `SUM(...) FILTER (WHERE bookings
   la base de datos a mano.
 - Las salas con historial de reservas no se borran, se desactivan. Así se conservan los datos.
 
+### Exportación a calendario (.ics)
+
+*Mis reservas* permite añadir las próximas reservas, todas o una a una, a Google Calendar,
+Outlook o Apple Calendar. El archivo lo genera [`ical.py`](backend/app/ical.py), una función pura
+que implementa lo necesario de RFC 5545 sin dependencias:
+
+- Las horas van en UTC (`20260928T080000Z`), así que cada calendario las muestra en la zona de
+  quien lo abre.
+- El `UID` es estable (`booking-7@room-booking`). Si se importa el archivo otra vez, el calendario
+  actualiza el evento en lugar de duplicarlo.
+- Se escapan `;`, `,`, `\` y los saltos de línea, y las líneas de más de 75 **octetos** se parten
+  sin cortar un carácter UTF-8 por la mitad (una `ñ` ocupa dos). Un test lo comprueba con un
+  título largo lleno de eñes.
+- Cada evento lleva un aviso 15 minutos antes.
+- La descarga necesita el token, y un enlace normal no puede enviar `Authorization`. Por eso el
+  frontend la pide con `fetch` y entrega el archivo como blob.
+
 ## API
 
 Todas las rutas, salvo las de `/api/auth` y `/api/health`, requieren
@@ -118,6 +135,7 @@ Todas las rutas, salvo las de `/api/auth` y `/api/health`, requieren
 | `POST` / `PUT` / `DELETE` | `/api/rooms[/:id]` | Gestión de salas (solo admin) |
 | `GET` | `/api/bookings?from=&to=[&room_id=]` | Reservas activas en un rango (calendario) |
 | `GET` | `/api/bookings/mine?scope=upcoming\|past` | Mis reservas |
+| `GET` | `/api/bookings/mine.ics` · `/api/bookings/:id.ics` | Exportar a calendario (iCalendar) |
 | `POST` | `/api/bookings` | Reservar (`409 slot_taken` si el hueco está ocupado) |
 | `DELETE` | `/api/bookings/:id` | Cancelar (quien reservó o un admin, y antes de que empiece) |
 | `GET` | `/api/stats/occupancy?from=&to=` | Horas y % de ocupación por sala (solo admin) |
@@ -154,8 +172,8 @@ npm install && npm run dev                           # http://localhost:5173
 ## Tests
 
 ```bash
-cd backend  && pytest --cov=app   # 48 tests: auth, reglas, concurrencia, estadísticas
-cd frontend && npm test           # utilidades de fechas y el diálogo de reserva (con fetch simulado)
+cd backend  && pytest --cov=app   # 57 tests: auth, reglas, concurrencia, estadísticas, .ics
+cd frontend && npm test           # fechas, diálogo de reserva y exportación .ics (con fetch simulado)
 ```
 
 La CI ejecuta en cada push:
@@ -174,7 +192,9 @@ La CI ejecuta en cada push:
 ## Qué añadiría después
 
 - Reservas recurrentes (cada lunes a las 10:00), con detección de conflictos para toda la serie.
-- Invitaciones a otros usuarios y exportación a `.ics`.
+- Invitaciones a otros usuarios.
+- Suscripción al calendario por URL (feed `.ics` con un token propio y revocable, porque los
+  clientes de calendario no pueden enviar la cabecera `Authorization`).
 - Refresh tokens y cookies `HttpOnly`.
 - Límite de peticiones en el login.
 

@@ -58,6 +58,28 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T
 }
 
+/**
+ * Descarga un archivo protegido por el token. Un <a href> normal no puede enviar la cabecera
+ * Authorization, así que se pide con fetch y se entrega como blob.
+ */
+async function download(path: string, filename: string): Promise<void> {
+  const token = tokenStore.get()
+  const res = await fetch(`${BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    if (res.status === 401 && token) onUnauthorized()
+    const body = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, body.message ?? 'No se pudo descargar el archivo')
+  }
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 const send = (method: string, data?: unknown): RequestInit => ({
   method,
   body: data === undefined ? undefined : JSON.stringify(data),
@@ -94,6 +116,8 @@ export const api = {
   myBookings: (scope: 'upcoming' | 'past') => request<Booking[]>(`/bookings/mine?scope=${scope}`),
   book: (data: BookingInput) => request<Booking>('/bookings', send('POST', data)),
   cancel: (id: number) => request<Booking>(`/bookings/${id}`, send('DELETE')),
+  downloadMyBookingsIcs: () => download('/bookings/mine.ics', 'mis-reservas.ics'),
+  downloadBookingIcs: (id: number) => download(`/bookings/${id}.ics`, `reserva-${id}.ics`),
 
   occupancy: (params: { from: string; to: string }) =>
     request<Occupancy>(`/stats/occupancy?${qs(params)}`),

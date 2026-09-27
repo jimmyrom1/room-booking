@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from flask import Blueprint, abort, current_app, jsonify, request
+from flask import Blueprint, Response, abort, current_app, jsonify, request
 from flask_jwt_extended import current_user, jwt_required
 from marshmallow import ValidationError
 from sqlalchemy import select
@@ -8,6 +8,7 @@ from sqlalchemy.orm import joinedload
 
 from ..errors import ConflictError
 from ..extensions import db
+from ..ical import bookings_to_ics
 from ..models import Booking, utcnow
 from ..queries import overlaps
 from ..rules import BookingPolicy
@@ -49,6 +50,36 @@ def my_bookings():
     else:
         stmt = stmt.where(Booking.ends_at > now).order_by(Booking.starts_at)
     return jsonify(schema.dump(db.session.scalars(stmt).all(), many=True))
+
+
+@bp.get("/mine.ics")
+@jwt_required()
+def my_bookings_ics():
+    """Mis próximas reservas activas como archivo .ics para importar en cualquier calendario."""
+    stmt = (
+        _with_relations(select(Booking))
+        .where(Booking.user_id == current_user.id)
+        .where(Booking.ends_at > utcnow(), Booking.cancelled_at.is_(None))
+        .order_by(Booking.starts_at)
+    )
+    bookings = db.session.scalars(stmt).all()
+    return _ics_response(bookings, "Mis reservas de salas", "mis-reservas.ics")
+
+
+@bp.get("/<int:booking_id>.ics")
+@jwt_required()
+def booking_ics(booking_id: int):
+    booking = _get_booking(booking_id)
+    return _ics_response([booking], booking.title, f"reserva-{booking.id}.ics")
+
+
+def _ics_response(bookings, calendar_name: str, filename: str) -> Response:
+    body = bookings_to_ics(bookings, calendar_name=calendar_name, now=utcnow())
+    return Response(
+        body,
+        mimetype="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @bp.post("")
