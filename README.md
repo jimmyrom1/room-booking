@@ -198,6 +198,17 @@ La CI ejecuta en cada push:
 - Refresh tokens y cookies `HttpOnly`.
 - Límite de peticiones en el login.
 
+## Otros proyectos
+
+Forma parte de una serie de proyectos con el mismo enfoque: reglas de negocio garantizadas
+por la base de datos o por funciones puras, tests que prueban los casos difíciles y CI en cada push.
+
+| Proyecto | Qué es |
+| --- | --- |
+| [LoL Tracker](https://github.com/jimmyrom1/lol-tracker) | App Android nativa: Kotlin, Jetpack Compose, Room, Hilt, multimódulo e importación de partidas desde la API de Riot. |
+| [Subscriptions API](https://github.com/jimmyrom1/subscriptions-api) | API REST con Java 21 y Spring Boot 4: prorrateo, facturación idempotente, ShedLock, Flyway y Testcontainers. |
+| [Mini Facturas](https://github.com/jimmyrom1/mini-invoice-generator) | Flask + PostgreSQL + React: facturas con IVA por línea, IRPF, numeración correlativa atómica y PDF. |
+
 ## Licencia
 
 MIT
